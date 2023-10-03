@@ -101,6 +101,8 @@ df_lists_comb_as <- df_lists_comb %>%
 rm(is_event)
 
 # Arrange so that A is the commonest species of the pair
+# This is not strictly necessary as odds ratio is symmetric, but could be convenient in future
+# if needed the graphs to be directed from most to least frequent species.
 df_lists_comb_as <- df_lists_comb_as |>
  rowwise() |>
  mutate(sum1 = sum(vector), sum2 = sum(vector2)) |>
