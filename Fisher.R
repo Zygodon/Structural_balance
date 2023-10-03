@@ -249,4 +249,7 @@ p3 <- ggplot(edges, aes(lor, fill=as.factor(sign)))  +
        fill="Sign")
 plot(p3)
 
+## write_rds(g, "Fisher_MG5.rds")
+
+
 
