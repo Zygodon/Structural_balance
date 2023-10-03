@@ -33,6 +33,8 @@ q <- sprintf('select quadrat_id, survey_id, assembly_name, species.species_name 
 
 # NOTE the double %% to escape the % formatting character
 
+plot_title <- "Meadows DB extract MG%" # Change title when changing extract
+
 rs1 = dbSendQuery(con, q)
 the_data <- as_tibble(fetch(rs1, n=-1))
 dbDisconnectAll()
@@ -148,7 +150,7 @@ rm(i, x, sft, xtab)
 
 # FDR adjustment
 q_obj <- qvalue(dyads$pval) #, pi0 = 0.5)
-hist(q_obj)
+plot(hist(q_obj))
 dyads <- dyads |>
   add_column(lfdr = q_obj$lfdr) |>
   filter(lfdr < 0.01)
@@ -193,12 +195,13 @@ b <- as.data.frame(do.call(rbind, balance)) |>
 
 b <- b |> filter(!is.na(balance))
 
-p2 <- b |> ggplot(aes(threshold, balance)) +
+p1 <- b |> ggplot(aes(threshold, balance)) +
+  ggtitle(paste(plot_title, "Balance with increasing species recruitment", sep = ", ")) +
   geom_line(colour = "blue") +
   geom_point()
 # geom_point(aes(colour = impact_sp == ""))
 
-plot(p2) + geom_text(label = b$name, vjust = 0, nudge_y = 0.001, angle = 20)
+plot(p1) + geom_text(label = b$name, vjust = 0, nudge_y = 0.001, angle = 20)
 
 # Shuffle + and - edges to compare distribution with observed counts (g1_triangles)
 x <- seq(1:1000)
@@ -214,14 +217,14 @@ piv_st <- st |> pivot_longer(cols=c(1,2,3,4), names_to = "type")
 piv_st <- piv_st|>mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
 
 # This is perhaps the most convincing evidence for intransitive competition.
-p3 <- ggplot(piv_st, aes(type, value, fill=balance)) +
-  ggtitle("") +
+p2 <- ggplot(piv_st, aes(type, value, fill=balance)) +
+  ggtitle(paste(plot_title, "Structural Balance", sep = ", ")) +
   geom_boxplot(alpha=0.6) +
   scale_fill_brewer(palette = "Dark2") +
   xlab("Triad edge signs") + ylab("Count") +
   theme(axis.text.x = element_text(size = 14))
 
-plot(p3 +
+plot(p2 +
        geom_point(data = triangles, aes(x = type, y = value, colour=balance), pch=19, size=10, alpha=1)  +
        geom_point(data = triangles, aes(x = type, y = value), colour = 'black', pch=8, size=3) +
        scale_colour_brewer(palette = "Dark2") +
@@ -233,15 +236,15 @@ edges <- g %>% activate(edges) %>%
   mutate(sign = ifelse(lor > 0, "associative", "disassociative")) |>
   as_tibble()
 
-p4 <- ggplot(edges, aes(lor, fill=as.factor(sign)))  +
+p3 <- ggplot(edges, aes(lor, fill=as.factor(sign)))  +
   geom_histogram() +
   scale_fill_brewer(palette = "Accent") +
   geom_vline(xintercept = 0, colour = "black") +
   xlim(-1, 1) +
-  labs(title ="", 
+  labs(title = paste(plot_title, "Odds ratio distribution", sep = ", "), 
        x = "log(odds_ratio)",
        y = "Edge count",
        fill="Sign")
-plot(p4)
+plot(p3)
 
 
