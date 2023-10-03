@@ -29,11 +29,12 @@ q <- sprintf('select quadrat_id, survey_id, assembly_name, species.species_name 
       join visit_dates on quadrats.vd_id = visit_dates.vds_id
       join records on records.quadrat_id = quadrats_id
       join species on species.species_id = records.species_id where species.species_id != 4 and
-      major_nvc_community like "MG%%" and quadrat_size = "2x2";')
+      major_nvc_community = "MG5" and quadrat_size = "2x2";')
+####### major_nvc_community like "MG%%" and quadrat_size = "2x2";')
 
 # NOTE the double %% to escape the % formatting character
 
-plot_title <- "Meadows DB extract MG%" # Change title when changing extract
+plot_title <- "Meadows DB extract MG5" # Change title when changing extract
 
 rs1 = dbSendQuery(con, q)
 the_data <- as_tibble(fetch(rs1, n=-1))
@@ -199,9 +200,8 @@ p1 <- b |> ggplot(aes(threshold, balance)) +
   ggtitle(paste(plot_title, "Balance with increasing species recruitment", sep = ", ")) +
   geom_line(colour = "blue") +
   geom_point()
-# geom_point(aes(colour = impact_sp == ""))
 
-plot(p1) + geom_text(label = b$name, vjust = 0, nudge_y = 0.001, angle = 20)
+plot(p1 + geom_text(label = b$name, vjust = 0, nudge_y = 0.001, angle = 20))
 
 # Shuffle + and - edges to compare distribution with observed counts (g1_triangles)
 x <- seq(1:1000)
@@ -216,7 +216,7 @@ st <- map_df(x, ShuffleSign)
 piv_st <- st |> pivot_longer(cols=c(1,2,3,4), names_to = "type")
 piv_st <- piv_st|>mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
 
-# This is perhaps the most convincing evidence for intransitive competition.
+# Evidence for Structural Balance
 p2 <- ggplot(piv_st, aes(type, value, fill=balance)) +
   ggtitle(paste(plot_title, "Structural Balance", sep = ", ")) +
   geom_boxplot(alpha=0.6) +
