@@ -89,12 +89,14 @@ df_lists_comb <- df_lists_comb%>%
   ungroup() %>%
   select(-grp)
 
+# And eliminate leading diagonal entries (interested only in iterspecific interactions)
+df_lists_comb <- df_lists_comb %>% filter(var != var2)
+  
 is_event <- function(...){ # See map2_int below. If this sum is zero, there are no co-occurrences
   sum(..1 & ..2)
 }
 
 df_lists_comb_as <- df_lists_comb %>% 
-  filter(var != var2) %>%                 # 0 on main diagonal
   mutate(events = map2_int(.x = vector, .y = vector2, .f = is_event)) %>% 
   filter((events > 0) & events < length(df_lists$vector[[1]])) %>%
   select(-events)
@@ -125,6 +127,12 @@ xtab <- function(...){ # See map2 below
 # And map them into dyads.
 dyads <- dyads %>% 
   mutate(xtable = map2(vector, vector2, xtab))
+
+# Pseudo count
+# dyads <- dyads |> 
+#   mutate(map(dyads$xtable, ~{.x + 1})) |>
+#   select(-xtable) |>
+#   rename(xtable = 5)
 
 # Important function to SAFELY apply fisher.test, ensuring we get
 # some return value for dyad.
