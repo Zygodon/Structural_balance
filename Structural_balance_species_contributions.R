@@ -217,7 +217,7 @@ g <- g |>  activate(nodes) |>
 g1 <- g |> filter(hits > 219) # All beyond T. Pratense
 
 # Now I want a list of all the main nodes and their neighbours.
-# tbl <- g1 |> activate(nodes) |> as_tibble()
+tbl <- g1 |> activate(nodes) |> as_tibble() # tbl required for the for-loop
 
 g3 <- g1
 for(i in 1:length(g1)) {
@@ -226,22 +226,80 @@ for(i in 1:length(g1)) {
 }
 rm(g2)
 
+# Need to reconstruct the graph at this point, otherwise it will be directed 
+# and stuff like count_signed_triangles won't work
 tbl <- g3 |> activate(edges) |> as_tibble() |> select(A, B, lor, sign)
 
 g4 <- as_tbl_graph(graph.data.frame(d = tbl, directed = FALSE))
 g4 <- g4 |> activate(nodes) |> left_join(species_data)
 
+# Add column to distinguish influential species
+g4 <- g4 |> activate(nodes) |> mutate(influential = hits > 219)
+
 g4 %>% 
   ggraph(layout = 'kk') + 
   geom_edge_link(aes(colour = factor(sign))) + 
-  geom_node_point(aes(colour = hits > 219), size = 8) +
+  geom_node_point(aes(colour = influential), size = 8) +
   ggtitle('Impact species with neighbours') + 
   theme_graph()
 
-bm <- signed_blockmodel(g4, 2, alpha = 0.5, annealing = T)
-g4 <- g4 |> activate(nodes) |> mutate(grp = bm$membership)
+# Edge type distribution
+# tbl <- g4 |> filter(!influential) |> activate(edges) |> as_tibble()
+g4 <- g4 |> activate(edges) |> 
+  mutate(A = .N()$name[from]) |>
+  mutate(B = .N()$name[to])
+g4 <- g4 |> 
+  mutate(influencer_A = .N()$influential[from]) |>
+  mutate(influencer_B = .N()$influential[to]) |>
+  mutate(intra_I = influencer_A & influencer_B) |>
+  mutate(intra_not_I = !(influencer_A & influencer_B)) |>
+  mutate(inter_I_not_I = xor(influencer_A, influencer_B))
 
-ggblock(g4, bm$membership,  show_blocks = TRUE, show_labels = TRUE)
+g4_edges <- g4 |> activate(edges) |> as_tibble()
+
+g4 %>% 
+  ggraph(layout = 'kk') + 
+  geom_edge_link(aes(colour = inter_I_not_I, lty = factor(sign) )) + 
+  geom_node_point(aes(colour = influential), size = 8) +
+  ggtitle('Impact species with neighbours') + 
+  theme_graph()
+
+# Multilevel
+g4 <- g4 |> activate(nodes) |> mutate(lvl = ifelse(influential, 1, 2))
+
+xy <- layout_as_multilevel(g4, type = "all", alpha = 25, beta = 45)
+
+ggraph(g4, "manual", x = xy[, 1], y = xy[, 2]) +
+  geom_edge_link0(
+    aes(filter = (node1.lvl == 1 & node2.lvl == 1)),
+    edge_colour = "firebrick3",
+    alpha = 0.5,
+    edge_linewidth = 0.3
+  ) +
+  geom_edge_link0(
+    aes(filter = (node1.lvl != node2.lvl)),
+    alpha = 0.3,
+    edge_linewidth = 0.1,
+    edge_colour = "black"
+  ) +
+  geom_edge_link0(
+    aes(filter = (node1.lvl == 2 &
+                    node2.lvl == 2)),
+    edge_colour = "goldenrod3",
+    edge_linewidth = 0.3,
+    alpha = 0.5
+  ) +
+  geom_node_point(aes(shape = as.factor(lvl)), fill = "grey25", size = 3) +
+  scale_shape_manual(values = c(21, 22)) +
+  theme_graph() +
+  coord_cartesian(clip = "off", expand = TRUE) +
+  theme(legend.position = "none")
+
+
+# bm <- signed_blockmodel(g4, 2, alpha = 0.5, annealing = T)
+# g4 <- g4 |> activate(nodes) |> mutate(grp = bm$membership)
+# 
+# ggblock(g4, bm$membership,  show_blocks = TRUE, show_labels = TRUE)
 
 
 
