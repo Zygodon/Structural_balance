@@ -169,20 +169,20 @@ g <- as_tbl_graph(graph.data.frame(d = dyads, directed = FALSE))
 
 # Add species names to edges from - to
 g <- g %>% activate(edges) %>% mutate(A = .N()$name[from], B = .N()$name[to])
-
-# Make g signed
-g <- g |> activate(edges) |> mutate(sign = ifelse(lor > 0, 1, -1))
-
-### EXAMINE SIGNED TRIANGLES ################
-
+# Add species name to node (lost when using dyads to make g, above)
 g <- g |>
   activate(nodes) |>
   left_join(species_data)
 
+# Make g signed
+g <- g |> activate(edges) |> mutate(sign = ifelse(lor > 0, 1, -1))
+
+### EXAMINE REMOVAL OF INDIVIDUAL SPECIES, EFFECT ON BALANCE ################
+
 thresh <- g |> 
   activate(nodes) |>
-  as_tibble() |>
-  filter(hits >= 50)
+  as_tibble() # |>
+#   filter(hits >= 50)
 
 # Remove, test, replace
 b <- map(thresh$jit, ~{
@@ -193,16 +193,17 @@ b <- map(thresh$jit, ~{
 balance <- as.data.frame(do.call(rbind, b)) |>
   as_tibble() |>
   rename(threshold = 1, balance = 2) |> # jittered threshold
-  mutate(name = thresh$name)
+  mutate(name = thresh$name) |> 
+  filter(!is.na(balance))
 
-balance <- balance |> filter(!is.na(balance))
 findoutlier <- function(x) {
   return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
 }
 
 balance <- balance %>%
   mutate(outlier = ifelse(findoutlier(balance), name, NA)) |> 
-  mutate(bfx <- balance - mean(balance))
+  mutate(bfx = balance - mean(balance)) |>
+  rename(bfx = 5)
 
 p1 <- balance |> ggplot(aes(balance)) + 
   ggtitle(paste(plot_title, "Effect on balance by species", sep = ", ")) +
@@ -210,7 +211,6 @@ p1 <- balance |> ggplot(aes(balance)) +
   geom_text(aes(label = outlier, y = 0), na.rm=TRUE, hjust = 0, nudge_y = 0.01, angle = 0) +
   coord_flip()
 plot(p1)
-
 
 p2 <- balance |> ggplot(aes(threshold, balance)) +
   ggtitle(paste(plot_title, "Balance with single species omitted", sep = ", ")) +
