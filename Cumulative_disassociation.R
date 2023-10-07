@@ -190,5 +190,9 @@ balance <- balance %>%
   filter(res == 2) |>
   mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))
 
-p0 <- balance |> ggplot(aes(.x, negative)) + geom_point()
+p0 <- balance |> ggplot(aes(.x, negative)) + 
+  geom_point() + 
+  ggtitle(paste(plot_title, "Cumulative diassociative dyads", sep = ", ")) +
+  labs(x = "Hits", y = "Disassociative edge count")
+  
 plot(p0)
