@@ -6,6 +6,7 @@ library(ggraph)
 library(tidygraph)
 library(qvalue)
 library(signnet)
+library(graphlayouts) # for multilevel layout
 
 # Functions #######################
 dbDisconnectAll <- function(){
@@ -48,12 +49,12 @@ d <- (the_data %>% select(quadrat_id, species_name)
       %>% ungroup()
       %>% pivot_wider(names_from = species_name, values_from = n))
 
-# At this point, d has the number of hits for each quadrat (rows) and species (columns).
+# At this point, d has either a 1 (for a hit) or NA (for a miss) for each quadrat (rows) and species (columns).
 # Replace anything numeric with 1, and any NA with 0
-d <- (d %>% select(-quadrat_id) %>% replace(., !is.na(.), 1)
-      %>% replace(., is.na(.), 0)) # Replace NAs with 0)
+d <- (d %>% select(-quadrat_id) %>% replace(., is.na(.), 0)) # Replace NAs with 0)
 
 n_quadrats <- length(unlist((the_data |> distinct(quadrat_id))))
+
 species_data <- the_data |> distinct(species_name)
 species_data <- species_data |> 
   add_column(hits = colSums(d)) |>
@@ -81,42 +82,42 @@ df_lists_comb <- expand(df_lists, # Expand data frame to include all possible co
 # Get rid of lower triangle here?
 # Eliminate lower triangle duplicates
 # Thank you https://stackoverflow.com/questions/22756392/deleting-reversed-duplicates-with-r
-df_lists_comb <- df_lists_comb%>%
+df_lists_comb <- df_lists_comb %>%
   rowwise() %>%
   mutate(grp = paste(sort(c(var, var2)), collapse = "_")) %>%
   group_by(grp) %>%
   slice(1) %>%
   ungroup() %>%
-  select(-grp)
+  select(-grp) %>%
+  filter(var != var2)                # 0 on main diagonal
 
 is_event <- function(...){ # See map2_int below. If this sum is zero, there are no co-occurrences
   sum(..1 & ..2)
 }
 
-df_lists_comb_as <- df_lists_comb %>% 
-  filter(var != var2) %>%                 # 0 on main diagonal
-  mutate(events = map2_int(.x = vector, .y = vector2, .f = is_event)) %>% 
-  filter((events > 0) & events < length(df_lists$vector[[1]])) %>%
-  select(-events)
+df_lists_comb_as <- df_lists_comb %>%
+  mutate(events = map2_int(.x = vector, .y = vector2, .f = is_event)) %>%
+  filter((events > 0)) # & events < length(df_lists$vector[[1]]))  %>%
+# select(-events)
 rm(is_event)
 
 # Arrange so that A is the commonest species of the pair
 # This is not strictly necessary as odds ratio is symmetric, but could be convenient in future
 # if needed the graphs to be directed from most to least frequent species.
 df_lists_comb_as <- df_lists_comb_as |>
- rowwise() |>
- mutate(sum1 = sum(vector), sum2 = sum(vector2)) |>
- ungroup()
+  rowwise() |>
+  mutate(sum1 = sum(vector), sum2 = sum(vector2)) |>
+  ungroup()
 
 id <- seq(1:length(df_lists_comb_as$var))
 d_list <- map(.x = id, ~ {ifelse(df_lists_comb_as$sum1[.x ] < df_lists_comb_as$sum2[.x], 
-                          temp <- c(df_lists_comb_as$var2[.x], df_lists_comb_as$var[.x], df_lists_comb_as$vector2[.x], df_lists_comb_as$vector[.x]),
-                          temp <- c(df_lists_comb_as$var[.x], df_lists_comb_as$var2[.x], df_lists_comb_as$vector[.x], df_lists_comb_as$vector2[.x]))
-                          return(temp)})
+                                 temp <- c(df_lists_comb_as$var2[.x], df_lists_comb_as$var[.x], df_lists_comb_as$vector2[.x], df_lists_comb_as$vector[.x]),
+                                 temp <- c(df_lists_comb_as$var[.x], df_lists_comb_as$var2[.x], df_lists_comb_as$vector[.x], df_lists_comb_as$vector2[.x]))
+  return(temp)})
 
 d2 <- as_tibble(do.call(rbind, d_list))
 dyads <- tibble(from = unlist(d2$V1), to = unlist(d2$V2), vector = d2$V3, vector2 = d2$V4)
-rm(d_list, d2, df_lists, df_lists_comb, df_lists_comb_as, id)
+## rm(d_list, d2, df_lists, df_lists_comb, df_lists_comb_as, id)
 
 # function to make the contingency tables.
 xtab <- function(...){ # See map2 below
@@ -125,12 +126,6 @@ xtab <- function(...){ # See map2 below
 # And map them into dyads.
 dyads <- dyads %>% 
   mutate(xtable = map2(vector, vector2, xtab))
-
-# Pseudo count
-# dyads <- dyads |> 
-#   mutate(map(dyads$xtable, ~{.x + 1})) |>
-#   select(-xtable) |>
-#   rename(xtable = 5)
 
 # Important function to SAFELY apply fisher.test, ensuring we get
 # some return value for dyad.
