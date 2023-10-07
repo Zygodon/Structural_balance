@@ -202,11 +202,42 @@ p1 <- balance |> ggplot(aes(balance)) +
   geom_boxplot(fill = "steelblue", alpha = 0.6) +
   geom_text(aes(label = outlier, y = 0), na.rm=TRUE, hjust = 0, nudge_y = 0.01, angle = 0) +
   coord_flip()
-plot(p1)
 
-p2 <- balance |> ggplot(aes(threshold, balance)) +
-  ggtitle(paste(plot_title, "Balance with single species omitted", sep = ", ")) +
-  geom_line(colour = "blue") +
-  geom_point()
+plot(p1 + annotate("text", x = 0.996, y = -0.25, label = "hits > 76", colour = "tomato"))
 
-plot(p2 + geom_text(label = balance$name, check_overlap = TRUE, angle = 20, alpha = 0.6))
+g1 <- g |> activate(nodes) |> filter(hits > 76)
+
+print(balance_score(g1, method = "triangles"))
+
+triangles <- count_signed_triangles(g1)|>as_tibble() |> mutate(type=c('+++', '++-', '+--', '---'))
+triangles <- triangles |> mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
+
+# Shuffle + and - edges to compare distribution with observed counts (g1_triangles)
+x <- seq(1:1000)
+ShuffleSign <- function(x){
+  sgn <- g1 |> activate(edges)|>select(sign)|>as_tibble()
+  smpl <- sgn|>pluck(3)|>sample() #shuffle
+  g2 <- g1|>activate(edges)|>select(-sign)|>mutate(sign=smpl)
+  return(count_signed_triangles(g2))
+}
+st <- map_df(x, ShuffleSign)
+# summary(st)
+piv_st <- st |> pivot_longer(cols=c(1,2,3,4), names_to = "type")
+piv_st <- piv_st|>mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
+
+# Evidence for Structural Balance
+p2 <- ggplot(piv_st, aes(type, value, fill=balance)) +
+  ggtitle(paste(plot_title, "Structural Balance", sep = ", ")) +
+  geom_boxplot(alpha=0.6) +
+  scale_fill_brewer(palette = "Dark2") +
+  xlab("Triad edge signs") + ylab("Count") +
+  theme(axis.text.x = element_text(size = 14))
+
+
+plot(p2 +
+       geom_point(data = triangles, aes(x = type, y = value, colour=balance), pch=19, size=10, alpha=1)  +
+       geom_point(data = triangles, aes(x = type, y = value), colour = 'black', pch=8, size=3) +
+       scale_colour_brewer(palette = "Dark2") +
+       annotate("text", x = 1, y = 100, label = "hits > 76") +
+       guides(fill=FALSE))
+
