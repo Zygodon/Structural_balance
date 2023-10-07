@@ -6,6 +6,7 @@ library(ggraph)
 library(tidygraph)
 library(qvalue)
 library(signnet)
+library(graphlayouts) # for multilevel layout
 
 # Functions #######################
 dbDisconnectAll <- function(){
@@ -48,12 +49,12 @@ d <- (the_data %>% select(quadrat_id, species_name)
       %>% ungroup()
       %>% pivot_wider(names_from = species_name, values_from = n))
 
-# At this point, d has the number of hits for each quadrat (rows) and species (columns).
+# At this point, d has either a 1 (for a hit) or NA (for a miss) for each quadrat (rows) and species (columns).
 # Replace anything numeric with 1, and any NA with 0
-d <- (d %>% select(-quadrat_id) %>% replace(., !is.na(.), 1)
-      %>% replace(., is.na(.), 0)) # Replace NAs with 0)
+d <- (d %>% select(-quadrat_id) %>% replace(., is.na(.), 0)) # Replace NAs with 0)
 
 n_quadrats <- length(unlist((the_data |> distinct(quadrat_id))))
+
 species_data <- the_data |> distinct(species_name)
 species_data <- species_data |> 
   add_column(hits = colSums(d)) |>
@@ -81,25 +82,23 @@ df_lists_comb <- expand(df_lists, # Expand data frame to include all possible co
 # Get rid of lower triangle here?
 # Eliminate lower triangle duplicates
 # Thank you https://stackoverflow.com/questions/22756392/deleting-reversed-duplicates-with-r
-df_lists_comb <- df_lists_comb%>%
+df_lists_comb <- df_lists_comb %>%
   rowwise() %>%
   mutate(grp = paste(sort(c(var, var2)), collapse = "_")) %>%
   group_by(grp) %>%
   slice(1) %>%
   ungroup() %>%
-  select(-grp)
-
-# And eliminate leading diagonal entries (interested only in iterspecific interactions)
-df_lists_comb <- df_lists_comb %>% filter(var != var2)
+  select(-grp) %>%
+  filter(var != var2)                # 0 on main diagonal
   
 is_event <- function(...){ # See map2_int below. If this sum is zero, there are no co-occurrences
   sum(..1 & ..2)
 }
 
-df_lists_comb_as <- df_lists_comb %>% 
-  mutate(events = map2_int(.x = vector, .y = vector2, .f = is_event)) %>% 
-  filter((events > 0) & events < length(df_lists$vector[[1]])) %>%
-  select(-events)
+df_lists_comb_as <- df_lists_comb %>%
+  mutate(events = map2_int(.x = vector, .y = vector2, .f = is_event)) %>%
+  filter((events > 0)) # & events < length(df_lists$vector[[1]]))  %>%
+  # select(-events)
 rm(is_event)
 
 # Arrange so that A is the commonest species of the pair
@@ -118,7 +117,7 @@ d_list <- map(.x = id, ~ {ifelse(df_lists_comb_as$sum1[.x ] < df_lists_comb_as$s
 
 d2 <- as_tibble(do.call(rbind, d_list))
 dyads <- tibble(from = unlist(d2$V1), to = unlist(d2$V2), vector = d2$V3, vector2 = d2$V4)
-rm(d_list, d2, df_lists, df_lists_comb, df_lists_comb_as, id)
+## rm(d_list, d2, df_lists, df_lists_comb, df_lists_comb_as, id)
 
 # function to make the contingency tables.
 xtab <- function(...){ # See map2 below
@@ -127,12 +126,6 @@ xtab <- function(...){ # See map2 below
 # And map them into dyads.
 dyads <- dyads %>% 
   mutate(xtable = map2(vector, vector2, xtab))
-
-# Pseudo count
-# dyads <- dyads |> 
-#   mutate(map(dyads$xtable, ~{.x + 1})) |>
-#   select(-xtable) |>
-#   rename(xtable = 5)
 
 # Important function to SAFELY apply fisher.test, ensuring we get
 # some return value for dyad.
@@ -155,7 +148,6 @@ for(i in 1:length(dyads$from)) {
 dyads <- dyads |> add_column(pval = x$pval, lor = log10(x$odds_ratio))
 dyads <- dyads |> select(-3, -4, -6) # Might need the xtables (5) again
 dyads <- dyads |> filter(pval < 1)   # needed to make qval work???
-dyads <- dyads |> filter(!is.infinite(lor))
 # Clean up...
 rm(i, x, sft, xtab)
 
@@ -258,6 +250,4 @@ p3 <- ggplot(edges, aes(lor, fill=as.factor(sign)))  +
 plot(p3)
 
 ## write_rds(g, "Fisher_MG5.rds")
-
-
 
