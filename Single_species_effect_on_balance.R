@@ -169,10 +169,12 @@ g <- g |> activate(edges) |> mutate(sign = ifelse(lor > 0, 1, -1))
 
 ### EXAMINE REMOVAL OF INDIVIDUAL SPECIES, EFFECT ON BALANCE ################
 
+g <- g |> activate(nodes) |> left_join(species_data)
+
 thresh <- g |> 
   activate(nodes) |>
   as_tibble() |>
-  filter(hits >= 50)
+  filter(hits > 76) # Based on first negative edges
 
 # Remove, test, replace
 b <- map(thresh$jit, ~{
