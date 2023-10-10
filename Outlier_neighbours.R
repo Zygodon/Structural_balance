@@ -221,3 +221,14 @@ ggraph(g4, layout = 'kk') +
 
 # NOTE g4 needs simplifying
 
+g4 |> activate(edges) |> 
+  filter(sign == -1) |> 
+  ggraph(layout = 'kk') +
+  ggtitle(paste(plot_title, "Outlier neighbours disassociative edges", sep = ", ")) +
+  geom_edge_fan(aes(alpha = abs(lor)), show.legend = FALSE) +
+  geom_node_point(aes(size = hits, colour = outlier)) +
+  annotate(
+    "text", label = "Outlier NA means species with hits < 77",
+    x = -0.5, y = -6, size = 4, colour = "black")
+
+
