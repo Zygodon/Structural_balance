@@ -231,4 +231,38 @@ g4 |> activate(edges) |>
     "text", label = "Outlier NA means species with hits < 77",
     x = -0.5, y = -6, size = 4, colour = "black")
 
+# Balance boxplot
+
+triangles <- count_signed_triangles(g4)|>as_tibble() |> mutate(type=c('+++', '++-', '+--', '---'))
+triangles <- triangles |> mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
+
+# Shuffle + and - edges to compare distribution with observed counts (g1_triangles)
+x <- seq(1:1000)
+ShuffleSign <- function(x){
+  sgn <- g4 |> activate(edges)|>select(sign)|>as_tibble()
+  smpl <- sgn|>pluck(3)|>sample() #shuffle
+  g2 <- g4|>activate(edges)|>select(-sign)|>mutate(sign=smpl)
+  return(count_signed_triangles(g2))
+}
+st <- map_df(x, ShuffleSign)
+# summary(st)
+piv_st <- st |> pivot_longer(cols=c(1,2,3,4), names_to = "type")
+piv_st <- piv_st|>mutate(balance=ifelse(type %in% c('+++', '+--'), 'balanced', 'unbalanced'))
+
+# Evidence for Structural Balance
+p2 <- ggplot(piv_st, aes(type, value, fill=balance)) +
+  ggtitle(paste(plot_title, "Structural Balance, outlier neighbours", sep = ", ")) +
+  geom_boxplot(alpha=0.6) +
+  scale_fill_brewer(palette = "Dark2") +
+  xlab("Triad edge signs") + ylab("Count") +
+  theme(axis.text.x = element_text(size = 14))
+
+
+plot(p2 +
+       geom_point(data = triangles, aes(x = type, y = value, colour=balance), pch=19, size=10, alpha=1)  +
+       geom_point(data = triangles, aes(x = type, y = value), colour = 'black', pch=8, size=3) +
+       scale_colour_brewer(palette = "Dark2") +
+       annotate("text", x = 1.5, y = 60, label = "Balance score 0.98") +
+       guides(fill=FALSE))
+
 
