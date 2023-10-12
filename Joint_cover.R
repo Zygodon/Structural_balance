@@ -202,6 +202,18 @@ JointCover <- function(A, B){
 dyads <- dyads |> rowwise() |> mutate(jc = as.integer(JointCover(from, to))) |> ungroup()
 dyads |> ggplot(aes(lor, jc)) + geom_jitter() # Not useful.
 
+outlier <- c("Lotus_corniculatus", "Trifolium_repens", "Rumex_acetosa", "Festuca_rubra", "Hypochaeris_radicata", "Ranunculus_repens")
+ol_dyads <- dyads |> filter(from %in% outlier | to %in% outlier)
+
+ol_dyads |> ggplot(aes(lor, jc)) + 
+  geom_jitter(aes(colour = lor > 0)) +
+  facet_wrap(~lor>0, ncol = 2) +
+  geom_smooth(aes(lor), method = "lm")
+
+
+
+
+
 # contact_data |> ggplot(aes(contact)) + 
 #   geom_boxplot() +
 #   xlim(c(0, 20))
